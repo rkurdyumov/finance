@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Portfolio
+{% endblock %}
+
+{% block main %}
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th scope="col">Symbol
+        <th scope="col">Shares
+        <th scope="col">Price
+        <th scope="col">Total
+        <th scope="col">
+    <tbody>
+      {% for stock in stocks %}
+        <tr>
+          <td>{{ stock.symbol }}
+          <td>{{ stock.shares }}
+          <td>{{ stock.price }}
+          <td>{{ stock.total }}
+          <td>
+            <form action="" method="post">
+              <button class="btn btn-secondary btn-sm" type="submit" name="buy" value={{ stock.symbol }}>Buy</button>
+              <button class="btn btn-secondary btn-sm" type="submit" name="sell" value={{ stock.symbol }}>Sell</button>
+            </form>
+      {% endfor %}
+        <tr>
+          <td colspan="3">CASH
+          <td>{{ cash }}
+    <tfoot>
+      <tr>
+        <td colspan="3">
+        <td>{{ total }}
+  </table>
+{% endblock %}

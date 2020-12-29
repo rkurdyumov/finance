@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Account Settings
+{% endblock %}
+
+{% block main %}
+  <p>Username: {{ username }}
+
+  <div class="row">
+    <div class="col">
+      <div class="card card-body">
+        <form action="/account" method="post">
+          <div class="form-group">
+              <input autocomplete="off" autofocus class="form-control" name="username" placeholder="New username" type="text">
+          </div>
+          <div class="form-group">
+              <input class="form-control" name="password" placeholder="Password" type="password">
+          </div>
+          <button class="btn btn-primary" type="submit" name="submit_username">Update username</button>
+        </form>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card card-body">
+        <form action="/account" method="post">
+          <div class="form-group">
+            <input class="form-control" name="password" placeholder="Current password" type="password">
+          </div>
+          <div class="form-group">
+            <input class="form-control" name="new_password" placeholder="New password" type="password">
+          </div>
+          <div class="form-group">
+            <input class="form-control" name="confirmation" placeholder="Confirm new password" type="password">
+          </div>
+          <button class="btn btn-primary" type="submit" name="submit_password">Update password</button>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}
