@@ -2,8 +2,6 @@ import os
 
 from cs50 import SQL
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
-from flask_session import Session
-from tempfile import mkdtemp
 from werkzeug.exceptions import default_exceptions, HTTPException, InternalServerError
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -11,7 +9,7 @@ from helpers import apology, login_required, lookup, usd
 
 # Configure application
 app = Flask(__name__)
-app.secret_key = b'_5#y2L"F4Q8z\n\xec]/'
+app.secret_key = os.environ.get("SECRET_KEY") or b'_5#y2L"F4Q8z\n\xec]/'
 
 # Ensure templates are auto-reloaded
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -27,17 +25,8 @@ def after_request(response):
 # Custom filter
 app.jinja_env.filters["usd"] = usd
 
-'''
-# Configure session to use filesystem (instead of signed cookies)
-app.config["SESSION_FILE_DIR"] = mkdtemp()
-app.config["SESSION_PERMANENT"] = False
-app.config["SESSION_TYPE"] = "filesystem"
-Session(app)
-'''
-
 # Configure CS50 Library to use Heroku Postgres database
-db = SQL("sqlite:///finance.db")
-#db = SQL(os.getenv("DATABASE_URL"))
+db = SQL(os.getenv("DATABASE_URL"))
 
 # Make sure API key is set
 if not os.environ.get("API_KEY"):
