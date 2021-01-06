@@ -59,7 +59,7 @@ def index():
         if row["shares"] == 0:
             continue
         quote = lookup(row["symbol"])
-        share_total = row["shares"]) * quote["price"]
+        share_total = row["shares"] * quote["price"]
         stocks.append({"symbol": row["symbol"],
                        "shares": row["shares"],
                        "price": usd(quote["price"]),
