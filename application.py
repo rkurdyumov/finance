@@ -271,7 +271,7 @@ def register():
                         h=generate_password_hash(request.form.get("password")))
     # TODO: Use result.inserted_primary_key after converting to SQLAlchemy ORM.
     if db.url.get_backend_name() in ["postgres", "postgresql"]:
-        id = session.execute("SELECT LASTVAL()").first()[0]
+        id = db.execute("SELECT LASTVAL()").first()[0]
     else:
         id = result.lastrowid if result.rowcount == 1 else None
     session["user_id"] = id
