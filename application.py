@@ -47,7 +47,9 @@ def index():
 
     cash = db.execute(text("SELECT * FROM users WHERE id = :id"),
                       id=session["user_id"]).fetchone()["cash"]
-    total = cash
+    # Coerce decimal.Decimal into float (Postgres numeric is decimal.Decimal)
+    # https://groups.google.com/d/msg/sqlalchemy/0qXMYJvq8SA/oqtvMD9Uw-kJ
+    total = float(cash)
     rows = db.execute(text(
         "SELECT symbol, sum(shares) as shares FROM transactions "
         "WHERE user_id=:id GROUP BY symbol"),
@@ -57,7 +59,7 @@ def index():
         if row["shares"] == 0:
             continue
         quote = lookup(row["symbol"])
-        share_total = int(row["shares"]) * quote["price"]
+        share_total = row["shares"] * quote["price"]
         stocks.append({"symbol": row["symbol"],
                        "shares": row["shares"],
                        "price": usd(quote["price"]),
