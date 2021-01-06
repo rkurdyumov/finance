@@ -1,6 +1,7 @@
 import os
 
-from cs50 import SQL
+from sqlalchemy import create_engine
+from sqlalchemy.sql import text
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.exceptions import default_exceptions, HTTPException, InternalServerError
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -26,7 +27,9 @@ def after_request(response):
 app.jinja_env.filters["usd"] = usd
 
 # Configure CS50 Library to use Heroku Postgres database
-db = SQL(os.getenv("DATABASE_URL"))
+if not os.environ.get("DATABASE_URL"):
+    raise RuntimeError("DATABASE_URL not set")
+db = create_engine(os.environ.get("DATABASE_URL"))
 
 # Make sure API key is set
 if not os.environ.get("API_KEY"):
@@ -42,12 +45,12 @@ def index():
         else:
             return redirect(url_for("sell", symbol=request.form["sell"]))
 
-    cash = db.execute(
-        "SELECT * FROM users WHERE id = :id", id=session["user_id"])[0]["cash"]
+    cash = db.execute(text("SELECT * FROM users WHERE id = :id"),
+                      id=session["user_id"]).fetchone()["cash"]
     total = cash
-    rows = db.execute(
-        ("SELECT symbol, sum(shares) as shares FROM transactions "
-         "WHERE user_id=:id GROUP BY symbol"),
+    rows = db.execute(text(
+        "SELECT symbol, sum(shares) as shares FROM transactions "
+        "WHERE user_id=:id GROUP BY symbol"),
         id=session["user_id"])
     stocks = []
     for row in rows:
@@ -69,8 +72,8 @@ def index():
 def account():
     """Modify account settings"""
     if request.method == "GET":
-        username = db.execute("SELECT * FROM users WHERE id = :id",
-                              id=session["user_id"])[0]["username"]
+        username = db.execute(text("SELECT * FROM users WHERE id = :id"),
+                              id=session["user_id"]).fetchone()["username"]
         return render_template("account.html", username=username)
 
     # Process username change.
@@ -81,17 +84,17 @@ def account():
             return apology("missing password")
 
         # Query database for new username
-        rows = db.execute("SELECT * FROM users WHERE username = :u",
-                          u=request.form.get("username"))
+        rows = db.execute(text("SELECT * FROM users WHERE username = :u"),
+                          u=request.form.get("username")).fetchall()
         if len(rows) != 0:
             return apology("username already exists")
 
-        hash = db.execute("SELECT * FROM users WHERE id = :id",
-                          id=session["user_id"])[0]["hash"]
+        hash = db.execute(text("SELECT * FROM users WHERE id = :id"),
+                          id=session["user_id"]).fetchone()["hash"]
         if not check_password_hash(hash, request.form.get("password")):
             return apology("invalid password", 403)
 
-        db.execute("UPDATE users SET username=:u WHERE id=:id",
+        db.execute(text("UPDATE users SET username=:u WHERE id=:id"),
                    u=request.form.get("username"),
                    id=session["user_id"])
         flash("Updated username!")
@@ -106,13 +109,18 @@ def account():
         elif request.form.get("password") == request.form.get("new_password"):
             return apology("new password same as old", 403)
 
-        hash = db.execute("SELECT * FROM users WHERE id = :id",
-                          id=session["user_id"])[0]["hash"]
+        hash = db.execute(text("SELECT * FROM users WHERE id = :id"),
+                          id=session["user_id"]).fetchone()["hash"]
+
+        print(hash)
+        print(request.form.get("password"))
+        print(check_password_hash(hash, request.form.get("password")))
+        #print(generate_password_hash(request.form.get("password")))
         if not check_password_hash(hash, request.form.get("password")):
             return apology("invalid password", 403)
 
-        db.execute(
-            "UPDATE users SET hash=:h WHERE id=:id",
+        db.execute(text(
+            "UPDATE users SET hash=:h WHERE id=:id"),
             h=generate_password_hash(request.form.get("new_password")),
             id=session["user_id"])
         flash("Updated password!")
@@ -134,20 +142,20 @@ def buy():
     if not quote:
         return apology("invalid symbol", 400)
 
-    cash = db.execute("SELECT * FROM users WHERE id = :id",
-                      id=session["user_id"])[0]["cash"]
+    cash = db.execute(text("SELECT * FROM users WHERE id = :id"),
+                      id=session["user_id"]).fetchone()["cash"]
     purchase_price = int(request.form.get("shares")) * quote["price"]
     if purchase_price > cash:
         return apology("can't afford", 400)
 
-    db.execute(
-        ("INSERT INTO transactions (user_id, symbol, shares, price) "
+    db.execute(text(
+        "INSERT INTO transactions (user_id, symbol, shares, price) "
          "VALUES (:u, :sy, :sh, :p)"),
         u=session["user_id"],
         sy=request.form.get("symbol"),
         sh=request.form.get("shares"),
         p=quote["price"])
-    db.execute("UPDATE users SET cash=cash-:c WHERE id=:id",
+    db.execute(text("UPDATE users SET cash=cash-:c WHERE id=:id"),
                c=purchase_price,
                id=session["user_id"])
     flash("Bought!")
@@ -158,12 +166,15 @@ def buy():
 @login_required
 def history():
     """Show history of transactions"""
-    transactions = db.execute(
-        ("SELECT symbol, shares, price, time FROM transactions "
-         "WHERE user_id=:id"),
+    rows = db.execute(text(
+        "SELECT symbol, shares, price, time FROM transactions "
+        "WHERE user_id=:id"),
         id=session["user_id"])
-    for transaction in transactions:
+    transactions = []
+    for row in rows:
+        transaction = dict(row)
         transaction["price"] = usd(transaction["price"])
+        transactions.append(transaction)
     return render_template("history.html", transactions=transactions)
 
 
@@ -188,16 +199,17 @@ def login():
         return apology("must provide password", 403)
 
     # Query database for username
-    rows = db.execute("SELECT * FROM users WHERE username = :username",
-                      username=request.form.get("username"))
-
-    # Ensure username exists and password is correct
-    if len(rows) != 1 or not check_password_hash(
-        rows[0]["hash"], request.form.get("password")):
-        return apology("invalid username and/or password", 403)
+    row = db.execute(text("SELECT * FROM users WHERE username = :username"),
+                     username=request.form.get("username")).fetchone()
+    # Ensure username exists
+    if row is None:
+        return apology("invalid username")
+    # Ensure password is correct
+    if not check_password_hash(row["hash"], request.form.get("password")):
+        return apology("invalid password", 403)
 
     # Remember which user has logged in
-    session["user_id"] = rows[0]["id"]
+    session["user_id"] = row["id"]
 
     # Redirect user to home page
     return redirect("/")
@@ -244,7 +256,7 @@ def register():
     if not request.form.get("username"):
         return apology("must provide username", 403)
     # Ensure username is not already taken
-    rows = db.execute("SELECT * FROM users WHERE username = :username",
+    rows = db.execute(text("SELECT * FROM users WHERE username = :username"),
                       username=request.form.get("username"))
     if len(rows) == 1:
         return apology("username already exists", 403)
@@ -256,9 +268,14 @@ def register():
         return apology("password confirmation must match", 403)
 
     # Add user and automatically log in.
-    id = db.execute("INSERT INTO users (username, hash) VALUES (:u, :h)",
-                    u=request.form.get("username"),
-                    h=generate_password_hash(request.form.get("password")))
+    result = db.execute(text("INSERT INTO users (username, hash) VALUES (:u, :h)"),
+                        u=request.form.get("username"),
+                        h=generate_password_hash(request.form.get("password")))
+    # TODO: Use result.inserted_primary_key after converting to SQLAlchemy ORM.
+    if db.url.get_backend_name() in ["postgres", "postgresql"]:
+        id = session.execute("SELECT LASTVAL()").first()[0]
+    else:
+        id = result.lastrowid if result.rowcount == 1 else None
     session["user_id"] = id
     flash("Registered!")
     return redirect("/")
@@ -269,8 +286,8 @@ def register():
 def sell():
     """Sell shares of stock"""
     if request.method == "GET":
-        shares = db.execute(
-            ("SELECT symbol, sum(shares) as shares FROM transactions "
+        shares = db.execute(text(
+            "SELECT symbol, sum(shares) as shares FROM transactions "
              "WHERE user_id=:id GROUP BY symbol"),
             id=session["user_id"])
         symbols = [share["symbol"] for share in shares if share["shares"]]
@@ -284,23 +301,23 @@ def sell():
     elif int(request.form.get("shares")) < 1:
         return apology("must sell at least one share", 400)
 
-    rows = db.execute(("SELECT sum(shares) as shares FROM transactions "
-                       "WHERE user_id=:id AND symbol=:symbol"),
+    rows = db.execute(text("SELECT sum(shares) as shares FROM transactions "
+                      "WHERE user_id=:id AND symbol=:symbol"),
                       id=session["user_id"],
                       symbol=request.form.get("symbol"))
     requested_shares = int(request.form.get("shares"))
-    if requested_shares > rows[0]["shares"]:
+    if requested_shares > rows.fetchone()["shares"]:
         return apology("too many shares", 400)
 
     quote = lookup(request.form.get("symbol"))
-    db.execute(("INSERT INTO transactions (user_id, symbol, shares, price) "
+    db.execute(text("INSERT INTO transactions (user_id, symbol, shares, price) "
                 "VALUES (:u, :sy, :sh, :p)"),
                u=session["user_id"],
                sy=request.form.get("symbol"),
                sh=-requested_shares,
                p=quote["price"])
     sell_price = int(request.form.get("shares")) * quote["price"]
-    db.execute("UPDATE users SET cash=cash+:c WHERE id=:id",
+    db.execute(text("UPDATE users SET cash=cash+:c WHERE id=:id"),
                c=sell_price,
                id=session["user_id"])
     flash("Sold!")
