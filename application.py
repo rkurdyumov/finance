@@ -57,7 +57,7 @@ def index():
         if row["shares"] == 0:
             continue
         quote = lookup(row["symbol"])
-        share_total = row["shares"] * quote["price"]
+        share_total = int(row["shares"]) * quote["price"]
         stocks.append({"symbol": row["symbol"],
                        "shares": row["shares"],
                        "price": usd(quote["price"]),
@@ -286,11 +286,11 @@ def register():
 def sell():
     """Sell shares of stock"""
     if request.method == "GET":
-        shares = db.execute(text(
+        rows = db.execute(text(
             "SELECT symbol, sum(shares) as shares FROM transactions "
-             "WHERE user_id=:id GROUP BY symbol"),
+            "WHERE user_id=:id GROUP BY symbol"),
             id=session["user_id"])
-        symbols = [share["symbol"] for share in shares if share["shares"]]
+        symbols = [row["symbol"] for row in rows if row["shares"]]
         return render_template("sell.html", symbols=symbols,
                                symbol=request.args.get("symbol"))
 
@@ -301,21 +301,23 @@ def sell():
     elif int(request.form.get("shares")) < 1:
         return apology("must sell at least one share", 400)
 
-    rows = db.execute(text("SELECT sum(shares) as shares FROM transactions "
-                      "WHERE user_id=:id AND symbol=:symbol"),
-                      id=session["user_id"],
-                      symbol=request.form.get("symbol"))
+    rows = db.execute(text(
+        "SELECT sum(shares) as shares FROM transactions "
+        "WHERE user_id=:id AND symbol=:symbol"),
+        id=session["user_id"],
+        symbol=request.form.get("symbol"))
     requested_shares = int(request.form.get("shares"))
     if requested_shares > rows.fetchone()["shares"]:
         return apology("too many shares", 400)
 
     quote = lookup(request.form.get("symbol"))
-    db.execute(text("INSERT INTO transactions (user_id, symbol, shares, price) "
-                "VALUES (:u, :sy, :sh, :p)"),
-               u=session["user_id"],
-               sy=request.form.get("symbol"),
-               sh=-requested_shares,
-               p=quote["price"])
+    db.execute(text(
+        "INSERT INTO transactions (user_id, symbol, shares, price) "
+        "VALUES (:u, :sy, :sh, :p)"),
+        u=session["user_id"],
+        sy=request.form.get("symbol"),
+        sh=-requested_shares,
+        p=quote["price"])
     sell_price = int(request.form.get("shares")) * quote["price"]
     db.execute(text("UPDATE users SET cash=cash+:c WHERE id=:id"),
                c=sell_price,
