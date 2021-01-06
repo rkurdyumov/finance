@@ -255,7 +255,7 @@ def register():
         return apology("must provide username", 403)
     # Ensure username is not already taken
     rows = db.execute(text("SELECT * FROM users WHERE username = :username"),
-                      username=request.form.get("username"))
+                      username=request.form.get("username")).fetchall()
     if len(rows) == 1:
         return apology("username already exists", 403)
     # Ensure password was submitted
