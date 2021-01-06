@@ -56,12 +56,13 @@ def index():
         id=session["user_id"])
     stocks = []
     for row in rows:
-        if row["shares"] == 0:
+        shares = int(row["shares"])
+        if shares == 0:
             continue
         quote = lookup(row["symbol"])
-        share_total = row["shares"] * quote["price"]
+        share_total = shares * quote["price"]
         stocks.append({"symbol": row["symbol"],
-                       "shares": row["shares"],
+                       "shares": shares,
                        "price": usd(quote["price"]),
                        "total": usd(share_total)})
         total += share_total
