@@ -59,7 +59,7 @@ def index():
         if row["shares"] == 0:
             continue
         quote = lookup(row["symbol"])
-        share_total = row["shares"] * quote["price"]
+        share_total = float(row["shares"]) * quote["price"]
         stocks.append({"symbol": row["symbol"],
                        "shares": row["shares"],
                        "price": usd(quote["price"]),
@@ -113,11 +113,6 @@ def account():
 
         hash = db.execute(text("SELECT * FROM users WHERE id = :id"),
                           id=session["user_id"]).fetchone()["hash"]
-
-        print(hash)
-        print(request.form.get("password"))
-        print(check_password_hash(hash, request.form.get("password")))
-        #print(generate_password_hash(request.form.get("password")))
         if not check_password_hash(hash, request.form.get("password")):
             return apology("invalid password", 403)
 
@@ -147,7 +142,7 @@ def buy():
     cash = db.execute(text("SELECT * FROM users WHERE id = :id"),
                       id=session["user_id"]).fetchone()["cash"]
     purchase_price = int(request.form.get("shares")) * quote["price"]
-    if purchase_price > cash:
+    if purchase_price > float(cash):
         return apology("can't afford", 400)
 
     db.execute(text(
